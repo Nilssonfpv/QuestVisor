@@ -3,6 +3,10 @@
 Watch the live FPV video from **DJI Goggles 3** on a big virtual screen in **Meta Quest 3** mixed reality,
 with about **23 ms** added latency (PC arrival to the headset display).
 
+> [!WARNING]
+> **This is an alpha build. Test at your own risk.** The creator takes no responsibility for you crashing in a
+> bando.
+
 > **Unofficial.** QuestVisor is an independent hobby project. It is not affiliated with, endorsed by or
 > supported by DJI or Meta. "DJI", "Avata", "O4", "Meta" and "Quest" are trademarks of their owners and are
 > used here only to say which hardware this works with.
