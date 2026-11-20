@@ -9,6 +9,13 @@ with about **23 ms** added latency (PC arrival to the headset display).
 
 ![QuestVisor](images/banner_2048x500.png)
 
+## Demo
+
+[![QuestVisor demo: the FPV screen in passthrough, with hands and real objects hiding it (occlusion)](https://img.youtube.com/vi/_t7YgsSZMIA/hqdefault.jpg)](https://www.youtube.com/watch?v=_t7YgsSZMIA)
+
+**[Watch the demo on YouTube](https://www.youtube.com/watch?v=_t7YgsSZMIA)**: the live FPV screen in passthrough,
+and occlusion, where your hands and real objects in front of the screen hide it.
+
 Version 0.1.0 (first public release). See [CHANGELOG.md](CHANGELOG.md).
 
 > **Tested with the video link in 16:9 only.** QuestVisor has been built and tested with the goggles' video link
