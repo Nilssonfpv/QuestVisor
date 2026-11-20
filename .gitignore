@@ -1,0 +1,14 @@
+# build outputs
+build/
+__pycache__/
+*.pyc
+.gradle/
+.kotlin/
+.idea/
+*.iml
+
+# machine-specific and secret
+local.properties
+keystore.properties
+*.jks
+*.keystore
