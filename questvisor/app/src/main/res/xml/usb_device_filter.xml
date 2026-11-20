@@ -1,0 +1,11 @@
+<resources>
+    <!-- The Goggles 3 are a composite device (bDeviceClass = 0), so the class-only entries below
+         never match it; without this line plugging them in neither launches the app nor grants
+         permission. 0x2CA3:0x0020 = DJI Goggles 3. -->
+    <usb-device vendor-id="11427" product-id="32" />
+    <usb-device class="224" subclass="1" protocol="3" />
+    <usb-device class="224" />
+    <usb-device class="2" subclass="2" protocol="255" />
+    <usb-device class="2" />
+    <usb-device class="10" />
+</resources>

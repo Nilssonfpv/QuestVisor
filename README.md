@@ -11,6 +11,11 @@ with about **23 ms** added latency (PC arrival to the headset display).
 
 Version 0.1.0 (first public release). See [CHANGELOG.md](CHANGELOG.md).
 
+> **Tested with the video link in 16:9 only.** QuestVisor has been built and tested with the goggles' video link
+> in 16:9 mode. **4:3 is currently untested** (the only 4:3 stream seen so far was the O4 Pro's race mode,
+> 1440×1080, in one session on 2026-11-19). A 4:3 setting may send a stream size the app has no fake keyframe
+> for, and the video then does not start until the goggles send a keyframe.
+
 ---
 
 ## How it works
@@ -223,6 +228,8 @@ include the extra frame the app's render pass probably adds.
 The goggles switch format on their own (arming, D-Log M, race mode). The app and the relay follow codec and
 resolution changes mid-stream: the decoder restarts within ~35–45 ms.
 
+Built and tested with the video link in **16:9**; **4:3 is currently untested** (see the note at the top).
+
 | Source | Codec | Resolution | Frame rate | Bitrate |
 |---|---|---|---|---|
 | Avata 2, disarmed | H.265 | 1832×1032 | 30 fps | ~13–21 Mbit/s |
@@ -266,9 +273,39 @@ powershell -ExecutionPolicy Bypass -File relay\build_relay_exe.ps1
 ```
 
 The script creates its own virtual environment with PyInstaller, PyAV and pygame-ce in the work folder
-(`-WorkDir` to change it, `-Python` to pick the interpreter). The Quest app's source is not published yet; the
-APK is in the release.
+(`-WorkDir` to change it, `-Python` to pick the interpreter).
+
+## Building the Quest app from source
+
+The app is the Gradle project in `questvisor/` (Kotlin + Meta Spatial SDK 0.15, native MediaCodec player in
+`app/src/main/cpp/`). Needs JDK 17+ (21 tested), the Android SDK with `platforms;android-34`, `build-tools;34.0.0`,
+`ndk;26.1.10909125` and `cmake;3.22.1`; Gradle comes with the wrapper.
+
+```powershell
+cd questvisor
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"     # or sdk.dir=... in local.properties
+.\gradlew.bat :app:assembleDebug                         # -> app\build\outputs\apk\debug\app-debug.apk
+adb install -r -g app\build\outputs\apk\debug\app-debug.apk
+```
+
+A release build (`:app:assembleRelease`) needs signing data; see `questvisor/keystore.properties.example`. App
+reference (controls, launch options, logs, stats, source layout): [questvisor/README.md](questvisor/README.md)
+and [questvisor/TECHNICAL.md](questvisor/TECHNICAL.md). `tools/` holds the generators for the fake keyframes in
+`questvisor/app/src/main/assets/fakeidr/` (needed to support a new stream size).
+
+## Repository layout
+
+```
+questvisor/   the Quest app (Gradle project)
+relay/        the PC relay and its video window, build script for QuestVisor-Relay.exe
+tools/        fake-keyframe generators and H.264/H.265 parameter-set helpers
+store-assets/ icon, banners, SideQuest listing
+```
 
 ## License
 
-Not decided yet; see [LICENSE](LICENSE). Third-party components: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+QuestVisor is free software under the **GNU General Public License version 3** ([LICENSE](LICENSE)), with an
+additional permission to combine the app with the Meta Spatial SDK, which keeps its own terms
+([LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md)). Anyone may use, study, change and share it; versions that are
+shared must stay under the same license, with their source. Third-party components:
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

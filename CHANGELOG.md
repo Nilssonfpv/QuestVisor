@@ -41,6 +41,7 @@ Quest app `com.xerx.questvisor`, versionName 0.1.0, versionCode 1. Relay `QuestV
 * Refuses to start a second relay on the same port (on Windows two could share it and fight over the goggles).
 
 ### Known limitations
+* **Built and tested with the video link in 16:9 mode only. 4:3 is currently untested.**
 * **The 0.1.0 APK is debug-signed.** A later release signed with a proper release key will not install over
   it; uninstall 0.1.0 first (`adb uninstall com.xerx.questvisor`). Saved settings, including the PC address,
   are lost with the uninstall.

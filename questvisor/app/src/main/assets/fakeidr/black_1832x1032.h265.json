@@ -1,0 +1,8 @@
+{
+ "codec": "h265",
+ "nal": "CRA",
+ "cra_offset_in_file": 106,
+ "poc_lsb_rbsp_bit": 6,
+ "poc_lsb_bits": 8,
+ "note": "set POC lsb = (first live picture POC lsb - 1) mod 2^bits by writing the field MSB-first at NAL byte 2 + bit/8 (bits counted after the 2-byte NAL header); no escaping needed"
+}

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Xerx. Part of QuestVisor; see LICENSE.
 """Video window for the QuestVisor relay: shows the goggles' live video on the PC.
 
 Runs in its own process (started by simple_forwarder.py), so decoding and drawing can never hold up the stream

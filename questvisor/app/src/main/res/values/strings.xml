@@ -1,0 +1,7 @@
+﻿<resources>
+    <string name="app_name">QuestVisor</string>
+    <string name="default_host"></string>
+    <string name="default_port">9201</string>
+    <string name="goggles_host">192.168.60.2</string>
+    <string name="goggles_port">9100</string>
+</resources>

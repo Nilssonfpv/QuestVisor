@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 Xerx. Part of QuestVisor; see LICENSE.
 """Low-latency relay: goggles 192.168.60.2:9100 -> every TCP client of 0.0.0.0:9201.
 
 What it does, and why:

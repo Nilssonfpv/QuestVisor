@@ -1,0 +1,6 @@
+<resources>
+    <item name="video_panel" type="id" />
+    <item name="video_panel_occluded" type="id" />
+    <item name="menu_button" type="id" />
+    <item name="control_panel" type="id" />
+</resources>
