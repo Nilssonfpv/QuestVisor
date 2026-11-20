@@ -36,7 +36,10 @@ the last few minutes of video on the headset so you can watch a crash again.
 
 ## Requirements
 
-* **Meta Quest 3** (Horizon OS, developer mode on, to install an APK from outside the Meta store).
+* **Meta Quest 3** (Horizon OS) with **ADB enabled**, so you can install an APK from outside the Meta store.
+  Either register as a Meta developer (free) and turn on developer mode in the Meta Horizon phone app, or
+  use a tool that enables ADB without a developer account, for example the guide at
+  https://www.quest-games-optimizer.com/how-to-enable-adb-from-your-meta-quest.
 * **DJI Goggles 3** with a linked air unit. Tested with the **DJI Avata 2** and the **DJI O4 Pro** air unit.
 * **Windows PC with a USB port** for the goggles' USB-C cable. Windows installs the goggles' network adapter
   ("Remote NDIS based Internet Sharing Device") on its own.
@@ -48,7 +51,7 @@ the last few minutes of video on the headset so you can watch a crash again.
 
 ### 1. The app on the Quest
 
-Either **SideQuest** (drag the APK onto SideQuest, headset connected by USB), or **adb**:
+ADB must be enabled on the Quest first (see [Requirements](#requirements)). Then use either **SideQuest** (drag the APK onto SideQuest, headset connected by USB), or **adb**:
 
 ```powershell
 adb install -r -g QuestVisor-0.1.0.apk
