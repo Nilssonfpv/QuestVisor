@@ -22,5 +22,5 @@
 
 ## Artwork
 
-The icon, banners and listing artwork in `store-assets/` were drawn for this project; no third-party artwork.
+The icon and banners in `images/` were drawn for this project; no third-party artwork.
 The wordmark text is rendered with the Windows font Segoe UI.

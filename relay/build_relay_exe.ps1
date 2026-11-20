@@ -37,7 +37,8 @@ if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
 
 # 2. icon: the app's launcher artwork as a multi-size .ico (optional)
 $ico = Join-Path $WorkDir "questvisor.ico"
-$png = Join-Path $repo "store-assets\icon_512.png"
+$png = Join-Path $repo "images\icon_512.png"                                  # release repo
+if (-not (Test-Path $png)) { $png = Join-Path $repo "store-assets\icon_512.png" }   # main repo
 $iconArgs = @()
 if (Test-Path $png) {
     & $py -I -c "import sys; from PIL import Image; Image.open(sys.argv[1]).save(sys.argv[2], sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])" $png $ico

@@ -7,7 +7,7 @@ with about **23 ms** added latency (PC arrival to the headset display).
 > supported by DJI or Meta. "DJI", "Avata", "O4", "Meta" and "Quest" are trademarks of their owners and are
 > used here only to say which hardware this works with.
 
-![QuestVisor](store-assets/banner_2048x500.png)
+![QuestVisor](images/banner_2048x500.png)
 
 Version 0.1.0 (first public release). See [CHANGELOG.md](CHANGELOG.md).
 
@@ -48,7 +48,7 @@ the last few minutes of video on the headset so you can watch a crash again.
 
 ### 1. The app on the Quest
 
-Either **SideQuest** (install the APK or the listing with SideQuest, headset connected by USB), or **adb**:
+Either **SideQuest** (drag the APK onto SideQuest, headset connected by USB), or **adb**:
 
 ```powershell
 adb install -r -g QuestVisor-0.1.0.apk
@@ -299,7 +299,7 @@ and [questvisor/TECHNICAL.md](questvisor/TECHNICAL.md). `tools/` holds the gener
 questvisor/   the Quest app (Gradle project)
 relay/        the PC relay and its video window, build script for QuestVisor-Relay.exe
 tools/        fake-keyframe generators and H.264/H.265 parameter-set helpers
-store-assets/ icon, banners, SideQuest listing
+images/       icon and banners
 ```
 
 ## License
