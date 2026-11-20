@@ -59,35 +59,57 @@ The app then shows up in the Quest library under **Unknown Sources**.
 
 1. Power on the goggles and the drone / air unit, and wait until the goggles show the live view.
 2. Plug the goggles' USB-C port into the PC.
-3. Windows adds a network adapter and gives the PC the address `192.168.60.1`. To check, run `ping 192.168.60.2`
-   in a terminal: it should answer.
+3. Windows adds a network adapter ("Remote NDIS based Internet Sharing Device") and gives the PC the address
+   `192.168.60.1`; the goggles are `192.168.60.2`. The relay finds the goggles at either address by itself.
+4. **If the adapter gets no `192.168.60.x` address** (Windows shows "Unidentified network" and a `169.254.x.x`
+   address, and the relay says so), set it by hand: Settings > Network & internet > Advanced network settings >
+   the goggles' adapter > Edit IP settings > Manual, IPv4 address `192.168.60.1`, subnet mask `255.255.255.0`,
+   no gateway. Or in an **administrator** PowerShell (the relay prints the adapter's name, for example
+   `Ethernet 4`):
+
+   ```powershell
+   netsh interface ipv4 set address name="Ethernet 4" static 192.168.60.1 255.255.255.0
+   ```
+
+   If the goggles are still not found, use `192.168.60.2` for the PC instead.
 
 ### 3. Run the relay
 
-Double-click **QuestVisor-Relay.exe**. With no options it connects to the goggles at `192.168.60.2:9100` and
-waits for the headset on TCP **9201** (video) and UDP **9200** (latency clock). Once a second it announces
-itself on the local network (UDP broadcast to port **9202**), so the app finds it without an address. It prints
-its status:
+Double-click **QuestVisor-Relay.exe**. No options are needed: it finds the goggles on their USB network
+(`192.168.60.2` or `192.168.60.1`, port 9100), shows their live video in a window on the PC, and waits for the
+headset on TCP **9201** (video) and UDP **9200** (latency clock). Once a second it announces itself on the local
+network (UDP broadcast to port **9202**), so the app finds it without an address. It prints its status:
 
 ```
 QuestVisor Relay 0.1.0
 listening on 0.0.0.0:9201 (TCP) for the Quest
 this PC: <your PC's IP address> (QuestVisor finds the relay by itself; enter this address only if it does not)
+video window: on (--no-window turns it off)
 clock: UDP 0.0.0.0:9200
 discovery: announcing on UDP 9202 from <your PC's IP address>
 waiting for goggles at 192.168.60.2:9100 (DJI Goggles 3 on USB, powered on) ...
-goggles connected
+goggles connected at 192.168.60.2:9100
+video window: H.265 stream, d3d11va decoding
 Quest connected: <the Quest's IP address>:50122
-in 33.85 Mbit/s, 100.0 fps, codec h265, params yes | <Quest IP> backlog 0.1 ms resyncs 0
+in 33.85 Mbit/s, 100.0 fps, codec h265, params yes | PC window backlog 0.1 ms resyncs 0, <Quest IP> backlog 0.1 ms resyncs 0
 ```
 
-Close the window (or Ctrl+C) to stop.
+Close the console window (or Ctrl+C) to stop the relay.
+
+**Video window.** The PC shows the same video the headset gets, with size, codec, frame rate and bitrate in the
+title bar. It is resizable; **F** or **F11** toggles full screen, **Esc** leaves full screen, **Q** or closing it
+hides it (the relay keeps running). It runs in its own process and decodes on the graphics card (Direct3D 11),
+and if it ever falls behind it is skipped ahead on its own, so it never slows down the stream to the headset.
+Like the headset, it starts on a neutral grey picture when it joins a running stream; still areas keep a grey
+wash until the goggles send a keyframe (arming, a mode switch), while everything that moves is repaired within
+a second or so.
 
 Options (`QuestVisor-Relay.exe --help`):
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--goggles HOST:PORT` | `192.168.60.2:9100` | where the goggles serve the video |
+| `--goggles HOST[:PORT]` | found automatically | where the goggles serve the video; by default the relay tries `192.168.60.2` and `192.168.60.1` (whichever is not the PC), port `9100` |
+| `--no-window` | off | do not show the video on the PC |
 | `--listen PORT` | `9201` | TCP port the Quest connects to |
 | `--clock-port PORT` | `9200` | UDP clock for the latency measurement, `0` = off (the app's clock port is fixed at 9200) |
 | `--discovery-port PORT` | `9202` | UDP port the relay announces itself on, `0` = off (the app listens on 9202) |
@@ -96,7 +118,9 @@ Options (`QuestVisor-Relay.exe --help`):
 | `--stats SECONDS` | `5` | interval of the status line, `0` = off |
 | `--version` | | print the version |
 
-Without the .exe: `python relay\simple_forwarder.py` (Python 3.9+, standard library only) takes the same options.
+Without the .exe: `python relay\simple_forwarder.py` (Python 3.9+) takes the same options. The relay itself
+needs only the standard library; the video window needs `pip install av pygame-ce` and is left out (with a
+note) when they are missing.
 
 ### 4. Windows Firewall
 
@@ -218,7 +242,7 @@ No audio: only video is relayed.
 
 | Symptom | Cause / fix |
 |---|---|
-| Relay keeps printing `waiting for goggles` / `timed out` | Goggles not on USB, not powered on, or no `192.168.60.x` adapter yet (`ping 192.168.60.2`). Try another cable or port; a cable that only charges will not work. |
+| Relay keeps printing `waiting for goggles` / `timed out` | Goggles not on USB, not powered on, or no `192.168.60.x` adapter yet (`ping 192.168.60.2`). Try another cable or port; a cable that only charges will not work. The relay says which: `no goggles network card on this PC`, or that the card has no `192.168.60.x` address (set it by hand, step 2.4). |
 | Relay prints `goggles connected` but `0.0 fps` | The goggles are not sending video: check that the goggles show the live view (drone / air unit on and linked). Re-plug the goggles. |
 | `connection refused` / the relay never connects, while another tool is running | The goggles serve **one client at a time**. Close any other relay or tool that is connected to the goggles. (One relay can serve several headsets.) |
 | `cannot listen on TCP port 9201` | Another relay is already running. Close it, or use `--listen` with another port (and `--ei port` on the Quest). |
@@ -233,16 +257,17 @@ No audio: only video is relayed.
 
 ## Building the relay from source
 
-The relay is a single Python file, `relay/simple_forwarder.py` (Python 3.9+, standard library only). To build
-the .exe:
+The relay is `relay/simple_forwarder.py` (Python 3.9+, standard library only) plus the video window,
+`relay/relay_preview.py` (PyAV and pygame-ce) with its fake keyframes in `relay/fakeidr/`. To build the .exe:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File relay\build_relay_exe.ps1
-# -> build\relay\dist\QuestVisor-Relay.exe  (one file, ~8 MB, no Python needed to run it)
+# -> build\relay\dist\QuestVisor-Relay.exe  (one file, ~50 MB, no Python needed to run it)
 ```
 
-The script creates its own virtual environment with PyInstaller in the work folder (`-WorkDir` to change it,
-`-Python` to pick the interpreter). The Quest app's source is not published yet; the APK is in the release.
+The script creates its own virtual environment with PyInstaller, PyAV and pygame-ce in the work folder
+(`-WorkDir` to change it, `-Python` to pick the interpreter). The Quest app's source is not published yet; the
+APK is in the release.
 
 ## License
 

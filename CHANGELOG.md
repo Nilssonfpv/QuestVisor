@@ -33,6 +33,12 @@ Quest app `com.xerx.questvisor`, versionName 0.1.0, versionCode 1. Relay `QuestV
   (waiting for goggles, goggles connected, Quest connected/disconnected, Mbit/s and fps), prints the PC's
   address, `--version`.
 * Announces itself once a second on UDP 9202 so the app finds it (`--discovery-port`, `0` = off).
+* Shows the live video on the PC in a resizable window (size, codec, fps and Mbit/s in the title; F/F11 full
+  screen), decoded on the graphics card in a separate process so it never slows the headset stream;
+  `--no-window` turns it off.
+* Finds the goggles by itself at `192.168.60.2` or `192.168.60.1` (`--goggles` overrides it), and says when the
+  goggles' USB network card is missing or has no `192.168.60.x` address, with the steps to set one by hand.
+* Refuses to start a second relay on the same port (on Windows two could share it and fight over the goggles).
 
 ### Known limitations
 * **The 0.1.0 APK is debug-signed.** A later release signed with a proper release key will not install over
@@ -46,5 +52,6 @@ Quest app `com.xerx.questvisor`, versionName 0.1.0, versionCode 1. Relay `QuestV
 * No audio.
 * The headset must be worn (proximity sensor) for the video to start.
 * After joining an O4 Pro stream, still areas can keep blocky remnants until something moves through them.
+  The same goes for the PC video window, where still areas keep a grey wash until the goggles send a keyframe.
 * If the hardware decoder stops producing frames after corrupt input there is no automatic restart; reconnect.
 * Panel rebuilds (size, curve, presets, occlusion) drop frames for well under a second.

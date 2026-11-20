@@ -17,7 +17,10 @@ What it does, and why:
     With both, the app's "Relay->displayed" stat is the true PC-arrival -> on-screen latency.
     --no-sei turns the SEI off; it is never handed to the decoder by the app either way.
 
-Usage:  python simple_forwarder.py [--goggles 192.168.60.2:9100] [--listen 9201] [--clock-port 9200]
+  * The goggles are found by themselves (192.168.60.2 or .1, port 9100); the live video is also shown on the PC
+    in a window (relay_preview.py, its own process; --no-window turns it off).
+
+Usage:  python simple_forwarder.py [--goggles HOST[:PORT]] [--listen 9201] [--clock-port 9200] [--no-window]
         (packaged as QuestVisor-Relay.exe by build_relay_exe.ps1; double-clicking it uses these defaults)
 """
 import argparse, collections, socket, struct, sys, threading, time
@@ -169,8 +172,9 @@ class Scanner:
 
 
 class Client:
-    def __init__(self, sock, addr, max_age_us, max_bytes):
+    def __init__(self, sock, addr, max_age_us, max_bytes, name=None):
         self.sock, self.addr = sock, addr
+        self.name = name or "Quest %s:%d" % addr
         self.active = False
         self.q = collections.deque()          # (enqueue_us, bytes)
         self.qbytes = 0
@@ -189,7 +193,7 @@ class Client:
                 self.active = False           # caller resyncs at the next AUD with parameter sets
                 self.resyncs += 1
                 if self.resyncs in (1, 10, 100) or self.resyncs % 1000 == 0:
-                    print("client %s:%d fell behind - resync #%d" % (self.addr + (self.resyncs,)), flush=True)
+                    print("%s fell behind - resync #%d" % (self.name, self.resyncs), flush=True)
                 return False
             self.q.append((t_us, data))
             self.qbytes += len(data)
@@ -219,7 +223,41 @@ class Client:
             self.sock.close()
         except OSError:
             pass
-        print("Quest disconnected: %s:%d" % self.addr, flush=True)
+        print("%s disconnected" % self.name, flush=True)
+
+
+class _PipeSock:
+    """Lets a Client write to the video window's pipe as if it were a socket."""
+
+    def __init__(self, conn):
+        self.conn = conn
+
+    def sendall(self, data):
+        try:
+            self.conn.send_bytes(data)
+        except (EOFError, ValueError) as e:
+            raise OSError(str(e))
+
+    def close(self):
+        self.conn.close()
+
+
+def start_video_window(max_age_us, max_bytes):
+    """Start the PC video window (relay_preview.py) in its own process; return its Client, or None."""
+    import importlib.util
+    missing = [m for m in ("av", "pygame") if importlib.util.find_spec(m) is None]
+    if missing:
+        print("video window: off (needs %s: pip install av pygame-ce)" % " and ".join(missing), flush=True)
+        return None
+    import multiprocessing
+    import relay_preview
+    ctx = multiprocessing.get_context("spawn")
+    rx, tx = ctx.Pipe(duplex=False)
+    p = ctx.Process(target=relay_preview.run, args=(rx,), daemon=True, name="video-window")
+    p.start()
+    rx.close()
+    print("video window: on (--no-window turns it off)", flush=True)
+    return Client(_PipeSock(tx), ("PC window", 0), max_age_us, max_bytes, name="video window")
 
 
 def clock_server(port):
@@ -286,6 +324,71 @@ def raise_priority():
             print("priority:", e, flush=True)
 
 
+GOGGLES_CANDIDATES = ("192.168.60.2", "192.168.60.1")   # the goggles' side of the USB (RNDIS) link
+GOGGLES_PORT = 9100
+
+
+def goggles_candidates():
+    """Addresses to try for the goggles when --goggles is not given: the goggles' end of the USB link is
+    192.168.60.2 or 192.168.60.1, whichever this PC does not hold itself."""
+    own = all_ipv4s()
+    return [ip for ip in GOGGLES_CANDIDATES if ip not in own] or list(GOGGLES_CANDIDATES)
+
+
+def rndis_adapters():
+    """Windows only: [(adapter name, [IPv4 addresses])] for the goggles' USB network card(s)
+    ("Remote NDIS based Internet Sharing Device"), or None when it cannot be checked."""
+    if sys.platform != "win32":
+        return None
+    import subprocess
+    ps = ("Get-NetAdapter -IncludeHidden | Where-Object { $_.InterfaceDescription -match 'Remote NDIS|RNDIS' "
+          "-and $_.Status -ne 'Not Present' } | ForEach-Object { $a = $_; "
+          "$ips = @(Get-NetIPAddress -InterfaceIndex $a.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue "
+          "| ForEach-Object IPAddress) -join ','; \"$($a.Name)|$ips\" }")
+    try:
+        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], capture_output=True,
+                           text=True, timeout=15, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except (OSError, subprocess.SubprocessError):
+        return None
+    out = []
+    for line in r.stdout.splitlines():
+        if "|" in line:
+            name, ips = line.rsplit("|", 1)
+            out.append((name.strip(), [ip for ip in ips.split(",") if ip]))
+    return out
+
+
+def check_usb_network():
+    """Explain what is wrong with the goggles' USB network, if anything can be seen from here."""
+    ads = rndis_adapters()
+    if ads is None:
+        return
+    if not ads:
+        print("  no goggles network card on this PC: is the USB-C cable a data cable, plugged into the goggles' "
+              "USB-C port, and are the goggles on?", flush=True)
+        return
+    for name, ips in ads:
+        if any(ip.startswith("192.168.60.") for ip in ips):
+            continue
+        print("  the goggles' network card \"%s\" has no 192.168.60.x address (%s). Set one by hand:\n"
+              "    Settings > Network & internet > Advanced network settings > %s > Edit IP settings > Manual,\n"
+              "    IPv4 address 192.168.60.1, subnet mask 255.255.255.0, no gateway; or in an administrator "
+              "PowerShell:\n"
+              "    netsh interface ipv4 set address name=\"%s\" static 192.168.60.1 255.255.255.0\n"
+              "  If the goggles are still not found, use 192.168.60.2 instead; the relay tries both."
+              % (name, ", ".join(ips) or "none", name, name), flush=True)
+
+
+def all_ipv4s():
+    ips = set()
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ips.add(info[4][0])
+    except OSError:
+        pass
+    return ips
+
+
 def local_ipv4s():
     """Best-effort list of this PC's IPv4 addresses (to tell the user what to enter on the Quest)."""
     ips = set()
@@ -308,9 +411,11 @@ def main():
     ap = argparse.ArgumentParser(
         prog="QuestVisor-Relay" if getattr(sys, "frozen", False) else None,
         description="%s %s: relays the DJI Goggles 3 live video (USB, %s) to the QuestVisor app on a "
-                    "Meta Quest over the local network." % (APP, __version__, "192.168.60.2:9100"))
+                    "Meta Quest over the local network." % (APP, __version__, "192.168.60.2 or .1, port 9100"))
     ap.add_argument("--version", action="version", version="%s %s" % (APP, __version__))
-    ap.add_argument("--goggles", default="192.168.60.2:9100", help="goggles video address (default %(default)s)")
+    ap.add_argument("--goggles", default=None,
+                    help="goggles video address HOST[:PORT] (default: found automatically, "
+                         "192.168.60.2 or 192.168.60.1, port 9100)")
     ap.add_argument("--listen", type=int, default=9201, help="TCP port the Quest connects to (default %(default)s)")
     ap.add_argument("--clock-port", type=int, default=9200, help="UDP clock server port, 0 = off (default %(default)s)")
     ap.add_argument("--discovery-port", type=int, default=DISCOVERY_PORT,
@@ -319,12 +424,31 @@ def main():
     ap.add_argument("--max-backlog-ms", type=float, default=150, help="resync a client this far behind (default %(default)s)")
     ap.add_argument("--max-backlog-kb", type=int, default=1024, help="resync a client with this much queued (default %(default)s)")
     ap.add_argument("--stats", type=float, default=5.0, help="seconds between stats lines, 0 = off (default %(default)s)")
+    ap.add_argument("--no-window", action="store_true", help="do not show the video on this PC")
     a = ap.parse_args()
-    try:
-        ghost, gport = a.goggles.rsplit(":", 1)
-        gport = int(gport)
-    except ValueError:
-        ap.error("--goggles must be HOST:PORT, e.g. 192.168.60.2:9100")
+    gport = GOGGLES_PORT
+    if a.goggles:
+        ghost = a.goggles
+        if ":" in a.goggles:
+            try:
+                ghost, gport = a.goggles.rsplit(":", 1)
+                gport = int(gport)
+            except ValueError:
+                ap.error("--goggles must be HOST or HOST:PORT, e.g. 192.168.60.2:9100")
+        hosts = lambda: [ghost]                                              # noqa: E731
+    else:
+        hosts = goggles_candidates
+    where = lambda: " or ".join("%s:%d" % (h, gport) for h in hosts())     # noqa: E731
+
+    def connect_goggles():
+        """Try each goggles address in turn; return (socket, host) or raise the last error."""
+        err = OSError("no address to try")
+        for h in hosts():
+            try:
+                return socket.create_connection((h, gport), timeout=2), h
+            except OSError as e:
+                err = e
+        raise err
 
     print("%s %s" % (APP, __version__), flush=True)
     raise_priority()
@@ -332,7 +456,12 @@ def main():
     scanner = Scanner(sei=not a.no_sei)
 
     srv = socket.socket()
-    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if sys.platform == "win32":
+        # On Windows SO_REUSEADDR lets a second relay bind the same port silently (both then fight over the
+        # goggles' single connection); exclusive use makes the second one fail with a clear message instead.
+        srv.setsockopt(socket.SOL_SOCKET, getattr(socket, "SO_EXCLUSIVEADDRUSE", -5), 1)
+    else:
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         srv.bind(("0.0.0.0", a.listen))
     except OSError as e:
@@ -355,6 +484,13 @@ def main():
             print("Quest connected: %s:%d" % addr, flush=True)
 
     threading.Thread(target=accept, daemon=True).start()
+    if not a.no_window:
+        # Up to 500 ms / 8 MB behind before the window is resynced (it is only a preview; the Quest's limits
+        # stay tight).
+        w = start_video_window(500 * 1000, 8 * 1024 * 1024)
+        if w:
+            with lock:
+                clients.append(w)
     if a.clock_port:
         threading.Thread(target=clock_server, args=(a.clock_port,), daemon=True).start()
     if a.discovery_port:
@@ -367,12 +503,12 @@ def main():
         try:
             if waiting_since is None:
                 waiting_since = time.monotonic()
-                print("waiting for goggles at %s:%d (DJI Goggles 3 on USB, powered on) ..." % (ghost, gport),
-                      flush=True)
-            g = socket.create_connection((ghost, gport), timeout=3)
+                print("waiting for goggles at %s (DJI Goggles 3 on USB, powered on) ..." % where(), flush=True)
+            g, gh = connect_goggles()
+            g.settimeout(None)
             g.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             g.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
-            print("goggles connected", flush=True)
+            print("goggles connected at %s:%d" % (gh, gport), flush=True)
             waiting_since, last_err = None, None
             scanner.reset()
             while True:
@@ -405,10 +541,13 @@ def main():
             err = str(e)
             if waiting_since is not None and err != last_err:
                 print("goggles: %s" % err, flush=True)
+                if last_err is None:
+                    check_usb_network()
                 last_err = err
             elif waiting_since is not None and time.monotonic() - waiting_since > 30:
-                print("still waiting for goggles at %s:%d (USB connected? goggles on? only one relay at a time)"
-                      % (ghost, gport), flush=True)
+                print("still waiting for goggles at %s (USB connected? goggles on? only one relay at a time)"
+                      % where(), flush=True)
+                check_usb_network()
                 waiting_since = time.monotonic()
             elif waiting_since is None:
                 print("goggles: %s" % err, flush=True)
@@ -416,6 +555,8 @@ def main():
 
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()          # the .exe starts the video window as a second copy of itself
     try:
         main()
     except KeyboardInterrupt:

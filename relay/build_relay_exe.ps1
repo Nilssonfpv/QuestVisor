@@ -1,14 +1,17 @@
-# Builds QuestVisor-Relay.exe (one file, no Python needed on the target PC) from relay/simple_forwarder.py.
+# Builds QuestVisor-Relay.exe (one file, no Python needed on the target PC) from tools/simple_forwarder.py.
 #
-#   powershell -ExecutionPolicy Bypass -File relay\build_relay_exe.ps1 [-WorkDir <dir>] [-Python <python.exe>]
+#   powershell -ExecutionPolicy Bypass -File tools\build_relay_exe.ps1 [-WorkDir <dir>] [-Python <python.exe>]
 #
-# Needs Python 3.9+ on the build PC. A private virtual environment with PyInstaller (and Pillow, for the .ico)
-# is created in the work folder; nothing is installed into the system Python.
-# Output: <WorkDir>\dist\QuestVisor-Relay.exe   (default WorkDir: build\relay in this repository)
+# Needs Python 3.9+ on the build PC. A private virtual environment with PyInstaller, Pillow (for the .ico),
+# PyAV and pygame-ce (for the PC video window) is created in the work folder; nothing is installed into the
+# system Python. Note: the PyAV wheel's FFmpeg includes libx264/libx265 (a GPL build), which ends up in the .exe.
+# Output: <WorkDir>\dist\QuestVisor-Relay.exe   (default WorkDir: build\relay next to this repo's tools folder)
 param(
     [string]$WorkDir = "",
     [string]$Python = "python",
-    [string]$PyInstallerVersion = "6.22.3"
+    [string]$PyInstallerVersion = "6.22.3",
+    [string]$AvVersion = "18.1.0",              # PyAV: FFmpeg decoders for the PC video window
+    [string]$PygameVersion = "2.5.8"            # pygame-ce: SDL2 window
 )
 $ErrorActionPreference = "Stop"
 $tools = $PSScriptRoot
@@ -28,7 +31,8 @@ if (-not (Test-Path $py)) {
     & $Python -m venv $venv
     if ($LASTEXITCODE -ne 0) { throw "could not create a virtual environment with '$Python'" }
 }
-& $py -m pip install --disable-pip-version-check -q "pyinstaller==$PyInstallerVersion" pillow
+& $py -m pip install --disable-pip-version-check -q "pyinstaller==$PyInstallerVersion" pillow `
+    "av==$AvVersion" "pygame-ce==$PygameVersion"
 if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
 
 # 2. icon: the app's launcher artwork as a multi-size .ico (optional)
@@ -60,10 +64,15 @@ VSVersionInfo(
 )
 "@ | Set-Content -Encoding utf8 $verFile
 
-# 4. build. simple_forwarder.py uses only the standard library and loads no data files (the fake-IDR
-#    assets are inside the Quest app, not the relay), so there is nothing else to bundle.
+# 4. build. The relay itself is standard library only; the PC video window (relay_preview.py) adds PyAV,
+#    pygame-ce and the fake keyframes it starts the decoder on (the Quest app's own fakeidr files, from the
+#    main repo, or relay\fakeidr in the release copy).
+$fake = Join-Path $repo "questvisor\app\src\main\assets\fakeidr"
+if (-not (Test-Path $fake)) { $fake = Join-Path $tools "fakeidr" }
+if (-not (Test-Path $fake)) { throw "fake keyframes not found (questvisor\app\src\main\assets\fakeidr or $tools\fakeidr)" }
 & $py -m PyInstaller --noconfirm --clean --onefile --console --name QuestVisor-Relay `
     --distpath (Join-Path $WorkDir "dist") --workpath (Join-Path $WorkDir "work") --specpath $WorkDir `
+    --paths $tools --hidden-import relay_preview --add-data "$fake;fakeidr" --exclude-module numpy `
     --version-file $verFile @iconArgs $src
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
 
